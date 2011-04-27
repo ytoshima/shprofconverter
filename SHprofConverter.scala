@@ -58,6 +58,12 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
   var hprofOut: PrintWriter = null
   var finfo: FileInfo = null
 
+  def debug(s: String) {
+    if (debugFlag) {
+      Console println "D: " + s
+    }
+  }
+
   def readHeader {
     // magic string: "JAVA PROFILE 1.0.1" or "JAVA PROFILE 1.0.2" + NULL
     val magicStrBytes = new Array[Byte](19)
@@ -140,9 +146,10 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
 
   def processUTF8(remaining: Int) {
     assert(remaining >= 4)
-    val nameid = readId
     val balen = remaining - header.pointerSize
     val buf = finfo.buf
+    debug("RECORD UTF8 @0x" + (buf.position-Constants.RECORD_HEADER_SIZE).toHexString)
+    val nameid = readId
     if (balen > 0) {
       val currentOffset = buf.position
       try {
@@ -161,6 +168,8 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
 
   def processLoadClass {
     val buf = finfo.buf
+    debug("RECORD LOAD_CLASS @0x" + 
+        (buf.position-Constants.RECORD_HEADER_SIZE).toHexString)
     val serial = buf getInt
     val objId = readId
     val stktsn = buf getInt
@@ -171,6 +180,8 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
   def processHeapDump(remaining: Int) {
     import Constants._
     val buf = finfo.buf
+    debug("RECORD HEAP_DUMP @0x" + 
+        (buf.position-Constants.RECORD_HEADER_SIZE).toHexString)
     val endpos = buf.position + remaining
     var nProcessed: Long = 0
     var printProgress = false
@@ -198,12 +209,14 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
   def shouldLogRoot = doConversion && pass == Pass.Scan
 
   def process_HPROF_GC_ROOT_UNKNOWN {
+    val buf = finfo.buf
+    debug("RECORD GC ROOT UNKNOWN @0x" + 
+        (buf.position-Constants.GC_RECORD_HEADER_SIZE).toHexString)
     val tid = readId
-    val buf = finfo buf
 
     if (buf.isInstanceOf[LoggingBufferAdapter]) {
           Console println "HPROF_GC_ROOT_UNKNOWN " + tid.toHexString +
-  		  ", frame=0)" + pass
+  		  ", frame=0) " + pass
     }
     if (shouldLogRoot) {
       hprofOut println "ROOT " + tid.toHexString + " (kind=<unknown>)"
@@ -211,14 +224,17 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
   }
 
   def process_HPROF_GC_ROOT_THREAD_OBJ {
+    val buf = finfo buf
+
+    debug("RECORD GC ROOT THREAD OBJ @0x" + 
+        (buf.position-Constants.GC_RECORD_HEADER_SIZE).toHexString)
     val tid = readId
     val tSeq = finfo.buf getInt
     val stkTrcSeq = finfo.buf getInt
-    val buf = finfo buf
 
     if (buf.isInstanceOf[LoggingBufferAdapter]) {
           Console println "HPROF_GC_ROOT_THREAD_OBJ " + tid.toHexString +
-  		  ", frame=0)" + pass
+  		  ", frame=0) " + pass
     }
     if (shouldLogRoot) {
       hprofOut println "ROOT " + tid.toHexString +
@@ -227,12 +243,14 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
   }
 
   def process_HPROF_GC_ROOT_JNI_GLOBAL {
+    val buf = finfo.buf
+    debug("RECORD GC ROOT JNI GLOBAL @0x" + 
+        (buf.position-Constants.GC_RECORD_HEADER_SIZE).toHexString)
     val tid = readId
     val jniGrId = readId
-    val buf = finfo.buf
     if (buf.isInstanceOf[LoggingBufferAdapter]) {
       Console println "ROOT " + tid.toHexString +
-                " (kind=<JNI global ref>, id=0, trace=0)" + pass
+                " (kind=<JNI global ref>, id=0, trace=0) " + pass
     }
     if (shouldLogRoot) {
             hprofOut println "ROOT " + tid.toHexString +
@@ -242,25 +260,30 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
 
   def process_HPROF_GC_ROOT_JNI_LOCAL {
     val buf = finfo.buf
+    debug("RECORD GC ROOT JNI LOCAL @0x" + 
+        (buf.position-Constants.GC_RECORD_HEADER_SIZE).toHexString)
     val tid = readId
     val tsn = buf getInt
     val frn = buf getInt
 
     if (buf.isInstanceOf[LoggingBufferAdapter]) {
       Console println "HPROF_GC_ROOT_JNI_LOCAL " + tid.toHexString +
-                " (kind=<JNI global ref>, id=0, trace=0)" + pass
+                " (kind=<JNI global ref>, id=0, trace=0) " + pass
     }
   }
 
   def process_HPROF_GC_ROOT_JAVA_FRAME {
     val buf = finfo buf
+
+    debug("RECORD GC ROOT JAVA_FRAME @0x" + 
+        (buf.position-Constants.GC_RECORD_HEADER_SIZE).toHexString)
     val tid = readId
     val tsn = buf getInt
     val frn = buf getInt
 
     if (buf.isInstanceOf[LoggingBufferAdapter]) {
       Console println "ROOT " + tid.toHexString +
-              " (kind=<Java stack>, thread=" + tsn.toHexString + ", frame=0)" + pass
+              " (kind=<Java stack>, thread=" + tsn.toHexString + ", frame=0) " + pass
     }
     if (shouldLogRoot) {
       hprofOut println "ROOT " + tid.toHexString +
@@ -269,24 +292,30 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
   }
 
   def process_HPROF_GC_ROOT_NATIVE_STACK {
+    val buf = finfo buf
+
+    debug("RECORD GC ROOT NATIVE STACK @0x" + 
+        (buf.position-Constants.GC_RECORD_HEADER_SIZE).toHexString)
     val tid = readId
     val tsn = finfo.buf getInt
-    val buf = finfo buf
 
     if (buf.isInstanceOf[LoggingBufferAdapter]) {
       Console println "HPROF_GC_ROOT_NATIVE_STACK " + tid.toHexString +
-              " (kind=<Java stack>, thread=" + tsn.toHexString + ", frame=0)" + pass
+              " (kind=<Java stack>, thread=" + tsn.toHexString + ", frame=0) " + pass
     }
   }
 
   def process_HPROF_GC_ROOT_STICKY_CLASS {
     val buf = finfo buf
+
+    debug("RECORD GC ROOT STICKY CLASS @0x" + 
+        (buf.position-Constants.GC_RECORD_HEADER_SIZE).toHexString)
     val tid = readId
 
     val name = nameMap(cnDic(tid))
     if (buf.isInstanceOf[LoggingBufferAdapter]) {
       Console println "HPROF_GC_ROOT_STICKY_CLASS " + tid.toHexString +
-              " (kind=<system class>, name=" + name + ", frame=0)" + pass
+              " (kind=<system class>, name=" + name + ", frame=0) " + pass
     }
     if (shouldLogRoot) {
       hprofOut println "ROOT " + tid.toHexString +
@@ -295,13 +324,16 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
   }
 
   def process_HPROF_GC_ROOT_THREAD_BLOCK {
+    val buf = finfo buf
+
+    debug("RECORD GC ROOT THREAD BLOCK @0x" + 
+        (buf.position-Constants.GC_RECORD_HEADER_SIZE).toHexString)
     val tid = readId
     val tsn = finfo.buf getInt
-    val buf = finfo buf
 
     if (buf.isInstanceOf[LoggingBufferAdapter]) {
       Console println "HPROF_GC_ROOT_THREAD_BLOCK " + tid.toHexString +
-              " (kind=<Java stack>, thread=" + tsn.toHexString + ", frame=0)" + pass
+              " (kind=<Java stack>, thread=" + tsn.toHexString + ", frame=0) " + pass
     }
     if (shouldLogRoot) {
       hprofOut println "ROOT " + tid.toHexString + " (kind=<thread block>, thread=" + tsn + ")"
@@ -309,12 +341,15 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
   }
 
   def process_HPROF_GC_ROOT_MONITOR_USED {
-    val tid = readId
     val buf = finfo buf
+
+    debug("RECORD GC ROOT MONITOR USED @0x" + 
+        (buf.position-Constants.GC_RECORD_HEADER_SIZE).toHexString)
+    val tid = readId
 
     if (buf.isInstanceOf[LoggingBufferAdapter]) {
       Console println "HPROF_GC_ROOT_MONITOR_USED " + tid.toHexString +
-                " (kind=<JNI global ref>, id=0, trace=0)" + pass
+                " (kind=<JNI global ref>, id=0, trace=0) " + pass
     }
     if (shouldLogRoot) {
       hprofOut println "ROOT " + tid.toHexString + " (kind=<busy monitor>)"
@@ -323,6 +358,9 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
 
   def process_HPROF_GC_CLASS_DUMP {
     val buf = finfo buf
+
+    debug("RECORD GC CLASS DUMP @0x" + 
+        (buf.position-Constants.GC_RECORD_HEADER_SIZE).toHexString)
     val id = readId
     val stksn = buf getInt
     val superid = readId
@@ -429,6 +467,9 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
   
   def process_HPROF_GC_INSTANCE_DUMP {
     val buf = finfo buf
+
+    debug("RECORD GC INSTANCE DUMP @0x" + 
+        (buf.position-Constants.GC_RECORD_HEADER_SIZE).toHexString)
     val id = readId
     val stktrcn = buf getInt
     val kid = readId
@@ -508,6 +549,9 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
   
   def process_HPROF_GC_OBJ_ARRAY_DUMP {
     val buf = finfo buf
+
+    debug("RECORD GC OBJ ARRAY DUMP @0x" + 
+        (buf.position-Constants.GC_RECORD_HEADER_SIZE).toHexString)
     val id = readId
     val stktrcsn = buf getInt
     val n_elements = buf getInt
@@ -515,7 +559,7 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
 
     if (buf.isInstanceOf[LoggingBufferAdapter]) {
         Console println "ARR " + id.toHexString + " (sz=xx, trace=0, nelems=" +
-                 n_elements + ", elem type=xx@" + ekid.toHexString + ")" + pass
+                 n_elements + ", elem type=xx@" + ekid.toHexString + ") " + pass
     }
     if (doConversion && pass == Pass.Process) {
       val baseSize = 4 * header.pointerSize + header.pointerSize * n_elements
@@ -550,6 +594,9 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
   
   def process_HPROF_GC_PRIM_ARRAY_DUMP {
     val buf = finfo buf
+
+    debug("RECORD GC PRIM ARRAY DUMP @0x" + 
+        (buf.position-Constants.GC_RECORD_HEADER_SIZE).toHexString)
     val id = readId
     val stktrcn = buf getInt
     val n_elements = buf getInt
@@ -562,7 +609,7 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
     if (buf.isInstanceOf[LoggingBufferAdapter]) {
         Console println "ARR prim " + id.toHexString + 
                         " (sz=xx, trace=0, nelems=" + n_elements +
-                        ", elem type=" + elem_type_s + ")" + pass
+                        ", elem type=" + elem_type_s + ") " + pass
     }
     
     if (pass == Pass.Process && etype == 5) {
@@ -656,7 +703,7 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
   Options:
     -convert: convert to ascii file
     -v: verbose"""
-    Console print msg
+    Console println msg
   }
 
   object Constants {
@@ -688,6 +735,9 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
     val HPROF_GC_INSTANCE_DUMP: Byte = 0x21
     val HPROF_GC_OBJ_ARRAY_DUMP: Byte = 0x22
     val HPROF_GC_PRIM_ARRAY_DUMP: Byte = 0x23
+
+    val RECORD_HEADER_SIZE = 9 // tag 1 + msec elapse 4 + remaining 4
+    val GC_RECORD_HEADER_SIZE = 1 // tag 1
 
     val asciiHprofHeader = """JAVA PROFILE 1.0.1, created Sun Mar  9 20:47:24 2008
 
