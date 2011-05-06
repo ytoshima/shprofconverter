@@ -14,6 +14,7 @@ import java.io.PrintWriter
 
 
 class SHprofConverter extends scala.util.logging.ConsoleLogger {
+  val versionString = "0.3"
   var vflag = false
   var debugFlag = false
   var dumpName = false
@@ -514,15 +515,17 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
                 hprofOut println "\t" + fs.name + "\t" + value.toHexString
               }
               
-              if (value != 0 && dumpString && pass == 2) {                
+              if (value != 0 && dumpString && pass == Pass.Process) {                
+                if (fs.name == "value") {
+                  //println("DD: dumpString name=value cname=" + cname)
+                }
                 if (fs.name == "value" &&
                     (cname == "java.lang.String" || cname == "java/lang/String")) {
                      //
-                  println("test")
                   val ca = charArrayMap(value)
                   if (ca != emptyCharArray) {
                     val ts = new String(ca)
-                    println("S: " + id + " " + ts)
+                    println("S: " + id.toHexString + " " + ts)
                   } else {
                     pendingStrings(id) = value
                   }
@@ -703,6 +706,7 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
   Options:
     -convert: convert to ascii file
     -v: verbose"""
+    Console println "SHprovConverter " + versionString
     Console println msg
   }
 
