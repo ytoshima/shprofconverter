@@ -140,7 +140,12 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
         case HPROF_UTF8 => processUTF8(remaining)
         case HPROF_LOAD_CLASS => processLoadClass
         case HPROF_HEAP_DUMP => processHeapDump(remaining)
-        case _ => buf.position(buf.position+remaining)
+        case HPROF_TRACE     => processTrace(remaining)
+        case HPROF_FRAME     => processFrame(remaining)
+        case _ => {
+          Console println "I: skipped record tag %#x".format(tag)
+          buf.position(buf.position+remaining)
+        }
       }
     }
   }
@@ -176,6 +181,55 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
     val stktsn = buf getInt
     val nameid = readId
     cnDic(objId) = nameid
+  }
+
+  def processTrace(remaining: Int) {
+    val buf = finfo.buf
+    require(remaining >= 12, "E: processTrace: remaining %d is too small, position %#x".format(remaining, finfo.buf.position))
+
+    val balen = remaining - 12
+    debug("RECORD TRACE @0x" + (buf.position-Constants.RECORD_HEADER_SIZE).toHexString)
+    val stackTraceSerialNumber = buf getInt
+    val threadSerialNumber     = buf getInt
+    val numberOfFrames         = buf getInt
+
+    require(balen >= 0, "E: processTrace: balen %d looks wrong".format(balen))
+
+    if (balen > 0) {
+      val tbuf = new Array[Byte](balen)
+      buf get(tbuf)
+    }
+    
+    Console.println(" trace sn %d thrsn %d nfr %d".format(stackTraceSerialNumber,
+        threadSerialNumber, numberOfFrames))
+  }
+
+  def processFrame(remaining: Int) {
+    val buf = finfo.buf
+    require(remaining >= 24, "E: processFrame: remaining %d is too small, position %#x".format(remaining, finfo.buf.position))
+
+    debug("RECORD FRAME @0x" + (buf.position-Constants.RECORD_HEADER_SIZE).toHexString)
+    val stackFrameId = readId
+    val methodNameId = readId
+    val methodSignatureId = readId
+    val sourceFileNameId  = readId
+    val classSerialNumber = buf getInt
+    val lineNumber        = buf getInt
+
+    def interpLineNumber(ln: Int): String = {
+      if (ln > 0) "normal"
+      else if (ln == -1) "unknown"
+      else if (ln == -2) "compiled"
+      else if (ln == -3) "native"
+      else "E: unexpected %d".format(ln)
+    }
+
+    Console.println(" frame frid %d methnmid %#x %s sigid %#x %s srcid %#x %s classsn %#x linenum %d %s".format(
+        stackFrameId, 
+        methodNameId, nameMap(methodNameId), 
+        methodSignatureId, nameMap(methodSignatureId), 
+        sourceFileNameId, nameMap(sourceFileNameId), 
+        classSerialNumber, lineNumber, interpLineNumber(lineNumber)))
   }
 
   def processHeapDump(remaining: Int) {
@@ -484,13 +538,14 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
       buf get(new Array[Byte](bytesFollow))
     } else if (pass == Pass.Process) {
       val cname = nameForClassId(kid)
+      val ci = clsDic(kid)
+      val isize = ci.isize + header.pointerSize * 2
       if (buf.isInstanceOf[LoggingBufferAdapter]) {
-        Console println "OBJ " + id.toHexString + " (sz=xx, trace=0, class=" +
+        Console println "OBJ " + id.toHexString + " (sz=" + isize + 
+                        ", trace=0, class=" +
                         cname + "@" + kid.toHexString + ")"
       }
       if (doConversion && pass == Pass.Process) {
-        val ci = clsDic(kid)
-        val isize = ci.isize + header.pointerSize * 2
         hprofOut println "OBJ " + id.toHexString + " (sz=" + isize +
                          ", trace=0, class=" + cname + "@" + kid.toHexString + ")"
       }
@@ -547,7 +602,7 @@ class SHprofConverter extends scala.util.logging.ConsoleLogger {
         }
         cid = ci.superid
       } 
-    }
+    } // Pass = Process
   }
   
   def process_HPROF_GC_OBJ_ARRAY_DUMP {
@@ -832,17 +887,17 @@ class LoggingBufferAdapter(buf: java.nio.MappedByteBuffer) extends BufferAdapter
   }
   override def get = {
     val v = buf.get()
-    dlog("get=" + v.toHexString)
+    dlog("get=%#x".format(v))
     v
   }
   override def get(dst: Array[Byte]) = {
     val v = buf.get(dst)
-    dlog("get[]=" + dst.map(_.toHexString).mkString(" "))
+    dlog("get[]=" + dst.map("%#x".format(_)).mkString(" "))
     v
   }
   override def getChar = {
     val v = buf getChar()
-    dlog("getChar=" + v.toHexString)
+    dlog("getChar=%#x".format(v.toShort))
     v
   }
   override def getDouble = {
@@ -857,17 +912,17 @@ class LoggingBufferAdapter(buf: java.nio.MappedByteBuffer) extends BufferAdapter
   }
   override def getInt = {
     val v = buf.getInt()
-    dlog("getInt=" + v.toHexString)
+    dlog("getInt=%#x".format(v))
     v
   }
   override def getLong = {
     val v = buf.getLong()
-    dlog("getLong=" + v.toHexString)
+    dlog("getLong=%#x".format(v))
     v
   }
   override def getShort = {
     val v = buf.getShort()
-    dlog("getShort=" + v.toHexString)
+    dlog("getShort=%#x".format(v))
     v
   }
   override def position(newPosition: Int) = {
